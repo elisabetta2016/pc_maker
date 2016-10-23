@@ -3,7 +3,7 @@
 <node pkg="tf" type="static_transform_publisher" name="map_broadcaster" args="0 0 0 0 0 0 /map /odom 100" /> -->
 
 <node pkg="pc_maker" type="pc_ground_plane" name="pc_ground_plane" output="screen" respawn="false">
-    <param name="X_Limit" value="4.00" />
+    <param name="X_Limit" value="5.00" />
     <param name="Y_Limit" value="2.50" />
     <param name="Z_u_Limit" value="0.5" />
     <param name="Z_d_Limit" value="-2.0" />
