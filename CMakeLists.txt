@@ -106,7 +106,7 @@ generate_messages(
 ## LIBRARIES: libraries you create in this project that dependent projects also need
 ## CATKIN_DEPENDS: catkin_packages dependent projects also need
 ## DEPENDS: system dependencies of this project that dependent projects also need
-catkin_package(
+catkin_package(CATKIN_DEPENDS message_runtime
 #  INCLUDE_DIRS include
 #  LIBRARIES pc_object_finder
 #  CATKIN_DEPENDS geometry_msgs pcl_conversions pcl_ros roscpp sensor_msgs std_msgs tf
@@ -137,6 +137,7 @@ include_directories(
 ## Declare a C++ executable
 add_executable(pc_creator src/pc_creator.cpp)
 add_executable(pc_ground_plane src/pc_ground_plane.cpp)
+add_executable(hazard_detector src/hazard_detector.cpp)
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
@@ -148,6 +149,10 @@ target_link_libraries(pc_creator
 )
 
 target_link_libraries(pc_ground_plane
+   ${catkin_LIBRARIES}
+)
+
+target_link_libraries(hazard_detector
    ${catkin_LIBRARIES}
 )
 #############
