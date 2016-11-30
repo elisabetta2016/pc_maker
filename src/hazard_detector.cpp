@@ -37,7 +37,9 @@ class hazard_detector
   {
      node = n_;
      sub_from_scanner = n_.subscribe("/RoverScannerInfo", 1, &hazard_detector::scanner_msg_cb,this);
-     sub_from_laser	= n_.subscribe("scan", 10, &hazard_detector::laser_cb,this);
+     sub_from_laser  	= n_.subscribe("scan", 10, &hazard_detector::laser_cb,this);
+     sub_from_obs_pc	= n_.subscribe("obstacle_cloud", 10, &hazard_detector::obs_pc_cb,this);
+
 
      n_.advertise<std_msgs::Char>("Hazard",1);
 
@@ -80,7 +82,7 @@ class hazard_detector
 
   ros::Subscriber sub_from_laser;
   ros::Subscriber sub_from_scanner;
-  ros::SubscribeOptions sub_from_obs_pc;
+  ros::Subscriber sub_from_obs_pc;
 
   ros::Publisher hazard_pub;
 
