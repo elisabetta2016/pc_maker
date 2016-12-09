@@ -26,7 +26,7 @@
 // Laser geometry
 
 // Messages
-#include "std_msgs/Char.h"
+#include "std_msgs/String.h"
 #include "donkey_rover/Rover_Scanner.h"
 
 // Service
@@ -41,7 +41,7 @@ class hazard_detector
      sub_from_obs_pc	= n_.subscribe("obstacle_cloud", 10, &hazard_detector::obs_pc_cb,this);
 
 
-     n_.advertise<std_msgs::Char>("Hazard",1);
+     hazard_pub = n_.advertise<std_msgs::String>("Hazard",1);
 
      //Z boundaries
      Z_ub =  0.90;
@@ -61,14 +61,14 @@ class hazard_detector
      ros::Rate r(10);
      ros::Time current_time;
      ros::Duration Since_last_hazard;
-     std_msgs::Char Hazard_msg;
+     std_msgs::String Hazard_msg;
      while(n_.ok())
      {
        current_time = ros::Time::now();
        Since_last_hazard = current_time - Hazard_timestamp;
 
        if(Since_last_hazard.toSec() > 3.00) //Reset the Hazard status if no new hazard is observed since 3 secs
-         Hazard = 'G';
+         Hazard = "Green";
        Hazard_msg.data = Hazard;
        hazard_pub.publish(Hazard_msg);
        ros::spinOnce();
@@ -86,7 +86,7 @@ class hazard_detector
 
   ros::Publisher hazard_pub;
 
-  char Hazard; // 'R' Red, 'Y' Yellow, "G" Green
+  std::string Hazard; // 'R' Red, 'Y' Yellow, "G" Green
   char scanner_state; // 'U' unknown, 'R' rolling, "I" idle
   float circle_;
   float Z_ub,Z_lb;
@@ -106,9 +106,9 @@ class hazard_detector
       if(scanner_state != 'I') return;
       if(msg->range_min < circle_)
       {
-        Hazard = 'Y';
+        Hazard = "Yellow";
         Hazard_timestamp = ros::Time::now();
-        if(msg->range_min < circle_/3.0) Hazard = 'R';
+        if(msg->range_min < circle_/3.0) Hazard = "Red";
       }
   }
 
@@ -125,9 +125,9 @@ class hazard_detector
           continue;
         if(Point_rad_dist(obs_pc.points[i]) < circle_)
         {
-          Hazard = 'Y';
+          Hazard = "Yellow";
           Hazard_timestamp = ros::Time::now();
-          if(Point_rad_dist(obs_pc.points[i]) < circle_/3.00) Hazard = 'R';
+          if(Point_rad_dist(obs_pc.points[i]) < circle_/3.00) Hazard = "Red";
         }
       }
   }
