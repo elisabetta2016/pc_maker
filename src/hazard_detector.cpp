@@ -104,11 +104,28 @@ class hazard_detector
   void laser_cb(const sensor_msgs::LaserScan::ConstPtr& msg)
   {
       if(scanner_state != 'I') return;
-      if(msg->range_min < circle_)
+      std::vector<float> range_vector = msg->ranges;
+      std::vector<size_t> red_index;
+      std::vector<size_t> yellow_index;
+      for(size_t i=0;i<range_vector.size();i = i+2)
+      {
+        if(range_vector[i] < circle_)
+        {
+          if(range_vector[i] < circle_/3)
+            red_index.push_back(i);
+          else
+            yellow_index.push_back(i);
+        }
+      }
+      if(yellow_index.size() > 3)
       {
         Hazard = "Yellow";
         Hazard_timestamp = ros::Time::now();
-        if(msg->range_min < circle_/3.0) Hazard = "Red";
+      }
+      if(red_index.size() > 3)
+      {
+        Hazard = "Red";
+        Hazard_timestamp = ros::Time::now();
       }
   }
 
