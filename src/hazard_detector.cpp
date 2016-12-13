@@ -88,7 +88,7 @@ class hazard_detector
 
   std::string Hazard; // 'R' Red, 'Y' Yellow, "G" Green
   char scanner_state; // 'U' unknown, 'R' rolling, "I" idle
-  float circle_;
+  double circle_;
   float Z_ub,Z_lb;
   ros::Time Hazard_timestamp;
 
