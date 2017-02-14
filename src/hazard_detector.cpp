@@ -62,8 +62,17 @@ class hazard_detector
      ros::Time current_time;
      ros::Duration Since_last_hazard;
      std_msgs::String Hazard_msg;
+     double circle_new;
      while(n_.ok())
      {
+       if(n_ptr.getParam("circle", circle_new))
+       {
+         if(abs(circle_new - circle_)>0.001)
+         {
+            circle_ = circle_new;
+            ROS_WARN("Hazard_Detector: new value for circle received: %f ",circle_);
+         }
+       }
        current_time = ros::Time::now();
        Since_last_hazard = current_time - Hazard_timestamp;
 
