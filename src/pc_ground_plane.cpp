@@ -106,45 +106,57 @@ class LaserToPcClass
 //    ROS_INFO("Encoder: %d Radian: %5f",scanAngleEnc,scanAngleEnc/244.6);
     temp.bim =  msg->bim;
     scanstack.push_back(temp);
+    WatchStack();
 
   }
 
   void WatchStack()
   {
-     double roll_angle;
+     double roll_angle,Period;
      if(!ros::param::get("/rover_state/scanner_config/Roll_angle",roll_angle))
      {
        ROS_FATAL("Param /rover_state/scanner_config/Roll_angle is missing, we can't work like this");
        return;
      }
+     ros::param::get("/rover_state/scanner_config/Period",Period);
      roll_angle = fabs((float) roll_angle);
      switch (ScannerState)
      {
      case mid1:
-       if(fabs((float) scanAngleEnc/244.6*M_PI/180) > roll_angle*0.7) ScannerState = side1;
        ROS_INFO("Midd 1");
+       if(fabs((float) scanAngleEnc/244.6*M_PI/180) > roll_angle*0.7) ScannerState = side1;     
        break;
      case side1:
-       if(fabs((float) scanAngleEnc/244.6*M_PI/180) < roll_angle*0.3) ScannerState = mid2;
        ROS_WARN("Side 1");
+       if(fabs((float) scanAngleEnc/244.6*M_PI/180) < roll_angle*0.3) ScannerState = mid2;
        break;
      case mid2:
+       ROS_INFO("Mid 2");
         if(fabs((float) scanAngleEnc/244.6*M_PI/180) > roll_angle*0.7) ScannerState = side2;
-        ROS_WARN("Side 2");
+
         break;
      case side2:
+       ROS_WARN("Side 2");
        if(fabs((float) scanAngleEnc) > 0.95*scanEncMax)
        {
          scanEncMax = 0;
+         scanAngleEnc =  0;
+         scanAngleEnc_last = 0;
          ros::param::set("/rover_state/scanner_command","Home");
          ROS_INFO("Done, stack size: %d",(int)scanstack.size());
 
          // calculate the cloud
          scanstack.empty();
          ScannerState = mid1;
+         std::string scnstate;
+         do {
+             ros::param::get("/rover_state/scanner_state",scnstate);
+             ROS_WARN("Waiting for the LIDAR TO GO BACK TO HOME");
+             ros::Duration(0.5).sleep();
+         }while(ros::ok() && !scnstate.compare("horizontal") == 0);
        }
+       break;
      }
-
   }
 
 
@@ -323,8 +335,11 @@ class LaserToPcClass
 		n_pr.param("voxel_filter", voxel_filter, 0.005);
 
 		
-		ros::MultiThreadedSpinner spinner(4);
-		spinner.spin();
+    while(ros::ok())
+    {
+      ros::spinOnce();
+      ros::Duration(1/50).sleep();
+    }
 		//ros::spin ();
 	
 	}
