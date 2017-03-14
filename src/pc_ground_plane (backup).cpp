@@ -28,7 +28,6 @@
 #include "std_msgs/Float32.h"
 #include "donkey_rover/Rover_Scanner.h"
 #include "pc_maker/CloudMetaData.h"
-#include <lms1xx/TiltScan.h>
 // Service
 #include "laser_assembler/AssembleScans.h"
 
@@ -39,12 +38,6 @@ union U_ANGLE
 {
   float f;
   uint8_t b[4];
-};
-
-struct LaserBim
-{
-  float angle;
-  sensor_msgs::LaserScan bim;
 };
 
 class LaserToPcClass
@@ -60,50 +53,21 @@ class LaserToPcClass
 			SubFromScannerInfo_		= n_.subscribe("/RoverScannerInfo", 1, &LaserToPcClass::scanner_msg_callback,this);
       SubFromScannerangle_	= n_.subscribe("/Scanner_angle_sync", 1, &LaserToPcClass::scanner_angle_callback,this);
       SubFromLaser_			    = n_.subscribe("scan", 10, &LaserToPcClass::laser_call_back,this);
-      SubFromScanTilt_       = n_.subscribe("Tilt_scan", 1, &LaserToPcClass::Tiltscan_cb,this);
+			
 			
 			// publishers
 			Right_cloud_pub_ 		 = n_.advertise<sensor_msgs::PointCloud2> ("Right_cloud", 1);
 			Left_cloud_pub_ 		 = n_.advertise<sensor_msgs::PointCloud2> ("Left_cloud", 1);
 			RL_cloud_pub_ 		 	 = n_.advertise<sensor_msgs::PointCloud2> ("RL_cloud", 1);
 			RL_cloud_Metadata_pub_		 = n_.advertise<pc_maker::CloudMetaData> ("RL_cloud_MetaData", 1);
-
+			
 
     			// Initializers
 			right_published = false;
 			left_published  = false;
-
-      scanAngleEnc_last = 18383; // init val
 	
 	}
-  void Tiltscan_cb(const lms1xx::TiltScan::ConstPtr &msg)
-  {
-    // init
-    #define deltaScan msg->ang-scanAngleEnc_last
-    if(scanAngleEnc_last == 18383)
-    {
-      scanAngleEnc_last = msg->ang;
-      ROS_INFO("Scanner Encoder initialized!");
-    }
-    // angle handle
-    if (deltaScan > 10000) {
-      scanAngleEnc += deltaScan - 16383;
-
-      }
-    else if(deltaScan < -10000){
-      scanAngleEnc += deltaScan + 16383;
-      }
-    else
-      scanAngleEnc += deltaScan;
-    scanAngleEnc_last = msg->ang;
-    //stacking
-    LaserBim temp;
-    temp.angle = scanAngleEnc/244.6;
-    ROS_INFO("Encoder: %d Radian: %5f",scanAngleEnc,scanAngleEnc/244.6);
-    temp.bim =  msg->bim;
-    //scanstack.push_back(temp);
-  }
-
+	
 	float point_distance(pcl::PointXYZ point_a, pcl::PointXYZ point_b)
 	{
 		float dist;
@@ -161,8 +125,18 @@ class LaserToPcClass
 	void laser_call_back(const sensor_msgs::LaserScan::ConstPtr& scan_in)
 	{
 		pcl::PointCloud<pcl::PointXYZ>::Ptr temp_cloud (new pcl::PointCloud<pcl::PointXYZ>);
+
+		/*
+		boost::thread_group tgroup;
+		tgroup.create_thread (boost::bind (&LaserToPcClass::partial_pc,this,scan_in, 0.0f,     M_PI/3,   temp_cloud   ,1));
+		tgroup.join_all();
+
+		*/
 		partial_pc(scan_in, 0.0,     M_PI,   temp_cloud   ,1);
 		inc_cloud_2d = *temp_cloud;
+	
+		
+	
 	}
 	
 	void scanner_msg_callback(const donkey_rover::Rover_Scanner::ConstPtr& msg)
@@ -172,7 +146,11 @@ class LaserToPcClass
 	
 	void scanner_angle_callback(const std_msgs::Float32::ConstPtr& msg)
 	{
-		Scanner_angle_curr = msg->data;		
+
+		
+		Scanner_angle_curr = msg->data;
+
+		
 		sensor_msgs::PointCloud2 cloud_rl;
 		
 		if (Scanner_angle_curr < 0.0f) //<
@@ -210,7 +188,7 @@ class LaserToPcClass
 			//inc_cloud_3d_left += inc_cloud_2d;
 			if (fabs(Scanner_angle_curr-roll_anlge) < 0.002 && !left_published)
 			{
-          sensor_msgs::PointCloud2 cloud_l;
+				sensor_msgs::PointCloud2 cloud_l;
   				pcl::toROSMsg(inc_cloud_3d_left,cloud_l);
   				cloud_l.header.stamp = ros::Time::now();
   				cloud_l.header.frame_id = "/laser";
@@ -224,7 +202,7 @@ class LaserToPcClass
   				cloud_rl.header.frame_id = "/laser";
   				
   				RL_cloud_pub_.publish(cloud_rl);
-          publish_MetaData_msg();
+				publish_MetaData_msg();
   				
   				//ROS_INFO("Left cloud");
   				inc_cloud_3d_right.clear();
@@ -267,9 +245,10 @@ class LaserToPcClass
 	}
 	
 
-  void run()
+  	void run()
 	{
-
+		// For parameters
+		//ros::NodeHandle n("~");
 		ros::NodeHandle n_pr("~");	
 		
 		n_pr.param("X_Limit", X_limit, 3.00);
@@ -295,7 +274,7 @@ class LaserToPcClass
 	ros::Subscriber SubFromScannerInfo_;
 	ros::Subscriber SubFromScannerangle_;
 	ros::Subscriber SubFromLaser_;
-  ros::Subscriber SubFromScanTilt_;
+	
 	// Publishers
 	ros::Publisher Right_cloud_pub_;
 	ros::Publisher Left_cloud_pub_;
@@ -307,7 +286,6 @@ class LaserToPcClass
 	double Z_u_limit;
 	double Z_d_limit;
 	double voxel_filter;
-  std::vector<LaserBim> scanstack;
 	
 	
 	// Services
@@ -324,9 +302,7 @@ class LaserToPcClass
 	float Scanner_angle_last;
 	bool left_published;
 	bool right_published;
-  int scanAngleEnc;
-  int scanAngleEnc_last;
-  int scanEncGlob;
+	
 	
 };
 
