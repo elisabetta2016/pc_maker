@@ -41,6 +41,8 @@ union U_ANGLE
   uint8_t b[4];
 };
 
+enum scannerSTATE {mid1,side1,mid2,side2};
+
 struct LaserBim
 {
   float angle;
@@ -74,7 +76,7 @@ class LaserToPcClass
 			left_published  = false;
 
       scanAngleEnc_last = 18383; // init val
-	
+      ScannerState = mid1;
 	}
   void Tiltscan_cb(const lms1xx::TiltScan::ConstPtr &msg)
   {
@@ -82,6 +84,7 @@ class LaserToPcClass
     #define deltaScan msg->ang-scanAngleEnc_last
     if(scanAngleEnc_last == 18383)
     {
+      scanEncMax = 0;
       scanAngleEnc_last = msg->ang;
       ROS_INFO("Scanner Encoder initialized!");
     }
@@ -95,14 +98,55 @@ class LaserToPcClass
       }
     else
       scanAngleEnc += deltaScan;
+    scanEncMax = std::max(abs(scanAngleEnc),scanEncMax);
     scanAngleEnc_last = msg->ang;
     //stacking
     LaserBim temp;
-    temp.angle = scanAngleEnc/244.6;
-    ROS_INFO("Encoder: %d Radian: %5f",scanAngleEnc,scanAngleEnc/244.6);
+    temp.angle = scanAngleEnc/244.6*M_PI/180;
+//    ROS_INFO("Encoder: %d Radian: %5f",scanAngleEnc,scanAngleEnc/244.6);
     temp.bim =  msg->bim;
-    //scanstack.push_back(temp);
+    scanstack.push_back(temp);
+
   }
+
+  void WatchStack()
+  {
+     double roll_angle;
+     if(!ros::param::get("/rover_state/scanner_config/Roll_angle",roll_angle))
+     {
+       ROS_FATAL("Param /rover_state/scanner_config/Roll_angle is missing, we can't work like this");
+       return;
+     }
+     roll_angle = fabs((float) roll_angle);
+     switch (ScannerState)
+     {
+     case mid1:
+       if(fabs((float) scanAngleEnc/244.6*M_PI/180) > roll_angle*0.7) ScannerState = side1;
+       ROS_INFO("Midd 1");
+       break;
+     case side1:
+       if(fabs((float) scanAngleEnc/244.6*M_PI/180) < roll_angle*0.3) ScannerState = mid2;
+       ROS_WARN("Side 1");
+       break;
+     case mid2:
+        if(fabs((float) scanAngleEnc/244.6*M_PI/180) > roll_angle*0.7) ScannerState = side2;
+        ROS_WARN("Side 2");
+        break;
+     case side2:
+       if(fabs((float) scanAngleEnc) > 0.95*scanEncMax)
+       {
+         scanEncMax = 0;
+         ros::param::set("/rover_state/scanner_command","Home");
+         ROS_INFO("Done, stack size: %d",(int)scanstack.size());
+
+         // calculate the cloud
+         scanstack.empty();
+         ScannerState = mid1;
+       }
+     }
+
+  }
+
 
 	float point_distance(pcl::PointXYZ point_a, pcl::PointXYZ point_b)
 	{
@@ -326,7 +370,8 @@ class LaserToPcClass
 	bool right_published;
   int scanAngleEnc;
   int scanAngleEnc_last;
-  int scanEncGlob;
+  int scanEncMax;
+  scannerSTATE ScannerState;
 	
 };
 
