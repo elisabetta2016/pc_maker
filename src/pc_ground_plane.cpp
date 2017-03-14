@@ -59,9 +59,9 @@ class LaserToPcClass
 			n_=node;
 
 			//subscribers
-			SubFromScannerInfo_		= n_.subscribe("/RoverScannerInfo", 1, &LaserToPcClass::scanner_msg_callback,this);
-      SubFromScannerangle_	= n_.subscribe("/Scanner_angle_sync", 1, &LaserToPcClass::scanner_angle_callback,this);
-      SubFromLaser_			    = n_.subscribe("scan", 10, &LaserToPcClass::laser_call_back,this);
+//			SubFromScannerInfo_		= n_.subscribe("/RoverScannerInfo", 1, &LaserToPcClass::scanner_msg_callback,this);
+//      SubFromScannerangle_	= n_.subscribe("/Scanner_angle_sync", 1, &LaserToPcClass::scanner_angle_callback,this);
+//      SubFromLaser_			    = n_.subscribe("scan", 10, &LaserToPcClass::laser_call_back,this);
       SubFromScanTilt_       = n_.subscribe("Tilt_scan", 1, &LaserToPcClass::Tiltscan_cb,this);
 			
 			// publishers
@@ -123,30 +123,29 @@ class LaserToPcClass
      switch (ScannerState)
      {
      case mid1:
-       ROS_INFO("Midd 1");
+//       ROS_INFO("Midd 1");
        if(fabs((float) scanAngleEnc/244.6*M_PI/180) > roll_angle*0.7) ScannerState = side1;     
        break;
      case side1:
-       ROS_WARN("Side 1");
+//       ROS_WARN("Side 1");
        if(fabs((float) scanAngleEnc/244.6*M_PI/180) < roll_angle*0.3) ScannerState = mid2;
        break;
      case mid2:
-       ROS_INFO("Mid 2");
+//       ROS_INFO("Mid 2");
         if(fabs((float) scanAngleEnc/244.6*M_PI/180) > roll_angle*0.7) ScannerState = side2;
 
         break;
      case side2:
-       ROS_WARN("Side 2");
+//       ROS_WARN("Side 2");
        if(fabs((float) scanAngleEnc) > 0.95*scanEncMax)
        {
          scanEncMax = 0;
          scanAngleEnc =  0;
-         scanAngleEnc_last = 0;
+         scanAngleEnc_last = 18383;
          ros::param::set("/rover_state/scanner_command","Home");
          ROS_INFO("Done, stack size: %d",(int)scanstack.size());
-
-         // calculate the cloud
-         scanstack.empty();
+         make_pc();
+         scanstack.clear();
          ScannerState = mid1;
          std::string scnstate;
          do {
@@ -167,139 +166,203 @@ class LaserToPcClass
 		return dist;
 	}
 	
-	void partial_pc(const sensor_msgs::LaserScan::ConstPtr& scan_in, float theta_in,float theta_out,pcl::PointCloud<pcl::PointXYZ>::Ptr temp_cloud, int id)
-	{
-		clock_t start = clock();
-		float theta = theta_in;
-		int start_index = (int) floor( (scan_in->angle_max - M_PI/2) /scan_in->angle_increment);
-		start_index += (int) floor(theta_in/scan_in->angle_increment);
-		int end_index = (int) floor( (scan_in->angle_max - M_PI/2) /scan_in->angle_increment);
-		end_index += (int) floor(theta_out/scan_in->angle_increment) + 1;
-		pcl::PointXYZ point_last;
-		point_last.x = 0.0;point_last.y = 0.0; point_last.z = 0.0;
-		for (int i = start_index; i< end_index ;i++)
-		{
-			ROS_INFO_ONCE("Start index: %d, End index: %d",start_index ,end_index );
-			pcl::PointXYZ point;
-			Eigen::Matrix4f M;
-			M = transform.matrix();
-			Eigen::Vector4f temp;
-			temp(0) = scan_in->ranges[i] * sin(theta);    //2
-			temp(1) = 1*scan_in->ranges[i] * cos(theta); //0 
-			temp(2) = 0.0;				      //1
-			temp(3) = 1.0;
-			temp = M * temp;
+//  void partial_pc(const sensor_msgs::LaserScan::ConstPtr& scan_in, float theta_in,float theta_out,pcl::PointCloud<pcl::PointXYZ>::Ptr temp_cloud, int id)
+//	{
+//		clock_t start = clock();
+//		float theta = theta_in;
+//		int start_index = (int) floor( (scan_in->angle_max - M_PI/2) /scan_in->angle_increment);
+//		start_index += (int) floor(theta_in/scan_in->angle_increment);
+//		int end_index = (int) floor( (scan_in->angle_max - M_PI/2) /scan_in->angle_increment);
+//		end_index += (int) floor(theta_out/scan_in->angle_increment) + 1;
+//		pcl::PointXYZ point_last;
+//		point_last.x = 0.0;point_last.y = 0.0; point_last.z = 0.0;
+//		for (int i = start_index; i< end_index ;i++)
+//		{
+//			ROS_INFO_ONCE("Start index: %d, End index: %d",start_index ,end_index );
+//			pcl::PointXYZ point;
+//			Eigen::Matrix4f M;
+//			M = transform.matrix();
+//			Eigen::Vector4f temp;
+//			temp(0) = scan_in->ranges[i] * sin(theta);    //2
+//			temp(1) = 1*scan_in->ranges[i] * cos(theta); //0
+//			temp(2) = 0.0;				      //1
+//			temp(3) = 1.0;
+//			temp = M * temp;
 			
-			point.x = temp(0);
-			point.y = temp(1);
-			point.z = temp(2);
+//			point.x = temp(0);
+//			point.y = temp(1);
+//			point.z = temp(2);
 			
-			float distance = point_distance(point,point_last);
-			theta += scan_in->angle_increment;
-			temp_cloud->points.push_back(point);
-			if (point.z > Z_d_limit && point.z < Z_u_limit && point.x < X_limit && point.x > 0.00 && distance > voxel_filter)
-			{
-				if(point.y > 0 && point.y < Y_limit) inc_cloud_3d_left.points.push_back(point);
-				if(point.y < 0 && point.y > -1.0*Y_limit)  inc_cloud_3d_right.points.push_back(point);
-				point_last = point; //differential
-			}
-			//point_last = point;
+//			float distance = point_distance(point,point_last);
+//			theta += scan_in->angle_increment;
+//			temp_cloud->points.push_back(point);
+//			if (point.z > Z_d_limit && point.z < Z_u_limit && point.x < X_limit && point.x > 0.00 && distance > voxel_filter)
+//			{
+//				if(point.y > 0 && point.y < Y_limit) inc_cloud_3d_left.points.push_back(point);
+//				if(point.y < 0 && point.y > -1.0*Y_limit)  inc_cloud_3d_right.points.push_back(point);
+//				point_last = point; //differential
+//			}
+//			//point_last = point;
 			
 			
-		}
-		clock_t end = clock();
-		ROS_WARN_ONCE("loop time %f",(float) (end - start)/CLOCKS_PER_SEC);
-		cloud_outlier_removal(temp_cloud,temp_cloud);
+//		}
+//		clock_t end = clock();
+//		ROS_WARN_ONCE("loop time %f",(float) (end - start)/CLOCKS_PER_SEC);
+//		cloud_outlier_removal(temp_cloud,temp_cloud);
 
 	
-	}
+//  }
+
+  void partial_pc(const sensor_msgs::LaserScan scan_in, float theta_in,float theta_out,pcl::PointCloud<pcl::PointXYZ>::Ptr temp_cloud, int id)
+  {
+
+    float theta = theta_in;
+    int start_index = (int) floor( (scan_in.angle_max - M_PI/2) /scan_in.angle_increment);
+    start_index += (int) floor(theta_in/scan_in.angle_increment);
+    int end_index = (int) floor( (scan_in.angle_max - M_PI/2) /scan_in.angle_increment);
+    end_index += (int) floor(theta_out/scan_in.angle_increment) + 1;
+    pcl::PointXYZ point_last;
+    point_last.x = 0.0;point_last.y = 0.0; point_last.z = 0.0;
+    for (int i = start_index; i< end_index ;i++)
+    {
+      ROS_INFO_ONCE("Start index: %d, End index: %d",start_index ,end_index );
+      pcl::PointXYZ point;
+      Eigen::Matrix4f M;
+      M = transform.matrix();
+      Eigen::Vector4f temp;
+      temp(0) = scan_in.ranges[i] * sin(theta);    //2
+      temp(1) = 1*scan_in.ranges[i] * cos(theta); //0
+      temp(2) = 0.0;				      //1
+      temp(3) = 1.0;
+      temp = M * temp;
+
+      point.x = temp(0);
+      point.y = temp(1);
+      point.z = temp(2);
+
+      float distance = point_distance(point,point_last);
+      theta += scan_in.angle_increment;
+      temp_cloud->points.push_back(point);
+      if (point.z > Z_d_limit && point.z < Z_u_limit && point.x < X_limit && point.x > 0.00 && distance > voxel_filter)
+      {
+        if(point.y > 0 && point.y < Y_limit) inc_cloud_3d_left.points.push_back(point);
+        if(point.y < 0 && point.y > -1.0*Y_limit)  inc_cloud_3d_right.points.push_back(point);
+        point_last = point; //differential
+      }
+      //point_last = point;
+
+
+    }
+    cloud_outlier_removal(temp_cloud,temp_cloud);
+
+  }
+
+  void make_pc()
+  {
+    sensor_msgs::PointCloud2 cloud_out;
+    pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_acc (new pcl::PointCloud<pcl::PointXYZ>);
+    for(int i = 0;i<scanstack.size();i++)
+    {
+      pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_2d (new pcl::PointCloud<pcl::PointXYZ>);
+      transform = Eigen::Affine3f::Identity();
+      transform.rotate (Eigen::AngleAxisf (scanstack[i].angle, Eigen::Vector3f::UnitX()));
+      partial_pc(scanstack[i].bim,0.0,M_PI,cloud_2d,1);
+      *cloud_acc += *cloud_2d;
+      cloud_2d->clear();
+    }
+    pcl::toROSMsg(*cloud_acc,cloud_out);
+    cloud_out.header.stamp = ros::Time::now();
+    cloud_out.header.frame_id = "laser";
+    RL_cloud_pub_.publish(cloud_out);
+    publish_MetaData_msg();
+  }
 	
-	void laser_call_back(const sensor_msgs::LaserScan::ConstPtr& scan_in)
-	{
-		pcl::PointCloud<pcl::PointXYZ>::Ptr temp_cloud (new pcl::PointCloud<pcl::PointXYZ>);
-		partial_pc(scan_in, 0.0,     M_PI,   temp_cloud   ,1);
-		inc_cloud_2d = *temp_cloud;
-	}
+//	void laser_call_back(const sensor_msgs::LaserScan::ConstPtr& scan_in)
+//	{
+//		pcl::PointCloud<pcl::PointXYZ>::Ptr temp_cloud (new pcl::PointCloud<pcl::PointXYZ>);
+//		partial_pc(scan_in, 0.0,     M_PI,   temp_cloud   ,1);
+//		inc_cloud_2d = *temp_cloud;
+//	}
 	
-	void scanner_msg_callback(const donkey_rover::Rover_Scanner::ConstPtr& msg)
-	{
-		roll_anlge = fabs(msg->Scanner_roll_angle);
-	}
+//	void scanner_msg_callback(const donkey_rover::Rover_Scanner::ConstPtr& msg)
+//	{
+//		roll_anlge = fabs(msg->Scanner_roll_angle);
+//	}
 	
-	void scanner_angle_callback(const std_msgs::Float32::ConstPtr& msg)
-	{
-		Scanner_angle_curr = msg->data;		
-		sensor_msgs::PointCloud2 cloud_rl;
+//	void scanner_angle_callback(const std_msgs::Float32::ConstPtr& msg)
+//	{
+//		Scanner_angle_curr = msg->data;
+//		sensor_msgs::PointCloud2 cloud_rl;
 		
-		if (Scanner_angle_curr < 0.0f) //<
-		{
-			//inc_cloud_3d_right += inc_cloud_2d;
-			if (fabs(Scanner_angle_curr+roll_anlge) < 0.002 && !right_published)
-			{
-				sensor_msgs::PointCloud2 cloud_r;
-  				pcl::toROSMsg(inc_cloud_3d_right,cloud_r);
-  				cloud_r.header.stamp = ros::Time::now();
-  				cloud_r.header.frame_id = "/laser";
+//		if (Scanner_angle_curr < 0.0f) //<
+//		{
+//			//inc_cloud_3d_right += inc_cloud_2d;
+//			if (fabs(Scanner_angle_curr+roll_anlge) < 0.002 && !right_published)
+//			{
+//				sensor_msgs::PointCloud2 cloud_r;
+//  				pcl::toROSMsg(inc_cloud_3d_right,cloud_r);
+//  				cloud_r.header.stamp = ros::Time::now();
+//  				cloud_r.header.frame_id = "/laser";
   				
-  				Right_cloud_pub_.publish(cloud_r);
-  				//ROS_INFO("Right cloud");
+//  				Right_cloud_pub_.publish(cloud_r);
+//  				//ROS_INFO("Right cloud");
   				
-  				inc_cloud_3d = inc_cloud_3d_left + inc_cloud_3d_right;
+//  				inc_cloud_3d = inc_cloud_3d_left + inc_cloud_3d_right;
   				
-  				pcl::toROSMsg(inc_cloud_3d,cloud_rl);
-  				cloud_rl.header.stamp = ros::Time::now();
-  				cloud_rl.header.frame_id = "/laser";
+//  				pcl::toROSMsg(inc_cloud_3d,cloud_rl);
+//  				cloud_rl.header.stamp = ros::Time::now();
+//  				cloud_rl.header.frame_id = "/laser";
   				
-  				RL_cloud_pub_.publish(cloud_rl);
-				publish_MetaData_msg();
-  				inc_cloud_3d_right.clear();
-  				inc_cloud_3d_left.clear();
+//  				RL_cloud_pub_.publish(cloud_rl);
+//				publish_MetaData_msg();
+//  				inc_cloud_3d_right.clear();
+//  				inc_cloud_3d_left.clear();
   				
-  				right_published = true;
-  				left_published = false;
-			}	
+//  				right_published = true;
+//  				left_published = false;
+//			}
 		
-		}
+//		}
 		
-		if (Scanner_angle_curr > 0.0f) //>
-		{
-			//inc_cloud_3d_left += inc_cloud_2d;
-			if (fabs(Scanner_angle_curr-roll_anlge) < 0.002 && !left_published)
-			{
-          sensor_msgs::PointCloud2 cloud_l;
-  				pcl::toROSMsg(inc_cloud_3d_left,cloud_l);
-  				cloud_l.header.stamp = ros::Time::now();
-  				cloud_l.header.frame_id = "/laser";
+//		if (Scanner_angle_curr > 0.0f) //>
+//		{
+//			//inc_cloud_3d_left += inc_cloud_2d;
+//			if (fabs(Scanner_angle_curr-roll_anlge) < 0.002 && !left_published)
+//			{
+//          sensor_msgs::PointCloud2 cloud_l;
+//  				pcl::toROSMsg(inc_cloud_3d_left,cloud_l);
+//  				cloud_l.header.stamp = ros::Time::now();
+//  				cloud_l.header.frame_id = "/laser";
   				
-  				Left_cloud_pub_.publish(cloud_l);
+//  				Left_cloud_pub_.publish(cloud_l);
   				
-  				inc_cloud_3d = inc_cloud_3d_left + inc_cloud_3d_right;
+//  				inc_cloud_3d = inc_cloud_3d_left + inc_cloud_3d_right;
   				
-  				pcl::toROSMsg(inc_cloud_3d,cloud_rl);
-  				cloud_rl.header.stamp = ros::Time::now();
-  				cloud_rl.header.frame_id = "/laser";
+//  				pcl::toROSMsg(inc_cloud_3d,cloud_rl);
+//  				cloud_rl.header.stamp = ros::Time::now();
+//  				cloud_rl.header.frame_id = "/laser";
   				
-  				RL_cloud_pub_.publish(cloud_rl);
-          publish_MetaData_msg();
+//  				RL_cloud_pub_.publish(cloud_rl);
+//          publish_MetaData_msg();
   				
-  				//ROS_INFO("Left cloud");
-  				inc_cloud_3d_right.clear();
-  				inc_cloud_3d_left.clear();
-  				right_published = false;
-  				left_published = true;
-			}
+//  				//ROS_INFO("Left cloud");
+//  				inc_cloud_3d_right.clear();
+//  				inc_cloud_3d_left.clear();
+//  				right_published = false;
+//  				left_published = true;
+//			}
 				
 		
-		}		
+//		}
 		
-		transform = Eigen::Affine3f::Identity();
-		transform.rotate (Eigen::AngleAxisf (Scanner_angle_curr, Eigen::Vector3f::UnitX()));
+//		transform = Eigen::Affine3f::Identity();
+//		transform.rotate (Eigen::AngleAxisf (Scanner_angle_curr, Eigen::Vector3f::UnitX()));
 		
 		
 		
-		Scanner_angle_last = Scanner_angle_curr;
+//		Scanner_angle_last = Scanner_angle_curr;
 		
-    	}
+//    	}
 		
 	void cloud_outlier_removal(pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_in, pcl::PointCloud<pcl::PointXYZ>::Ptr cloud_filtered)
 	{
@@ -337,11 +400,12 @@ class LaserToPcClass
 		
     while(ros::ok())
     {
+
       ros::spinOnce();
       ros::Duration(1/50).sleep();
+
     }
-		//ros::spin ();
-	
+
 	}
   	
 
@@ -387,6 +451,7 @@ class LaserToPcClass
   int scanAngleEnc_last;
   int scanEncMax;
   scannerSTATE ScannerState;
+
 	
 };
 
