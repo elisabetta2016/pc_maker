@@ -41,7 +41,7 @@ union U_ANGLE
   uint8_t b[4];
 };
 
-enum scannerSTATE {mid1,side1,mid2,side2};
+enum scannerSTATE {mid1,side1,mid2,side2,WaiT};
 
 struct LaserBim
 {
@@ -65,8 +65,8 @@ class LaserToPcClass
       SubFromScanTilt_       = n_.subscribe("Tilt_scan", 1, &LaserToPcClass::Tiltscan_cb,this);
 			
 			// publishers
-			Right_cloud_pub_ 		 = n_.advertise<sensor_msgs::PointCloud2> ("Right_cloud", 1);
-			Left_cloud_pub_ 		 = n_.advertise<sensor_msgs::PointCloud2> ("Left_cloud", 1);
+//			Right_cloud_pub_ 		 = n_.advertise<sensor_msgs::PointCloud2> ("Right_cloud", 1);
+//			Left_cloud_pub_ 		 = n_.advertise<sensor_msgs::PointCloud2> ("Left_cloud", 1);
 			RL_cloud_pub_ 		 	 = n_.advertise<sensor_msgs::PointCloud2> ("RL_cloud", 1);
 			RL_cloud_Metadata_pub_		 = n_.advertise<pc_maker::CloudMetaData> ("RL_cloud_MetaData", 1);
 
@@ -99,13 +99,17 @@ class LaserToPcClass
     else
       scanAngleEnc += deltaScan;
     scanEncMax = std::max(abs(scanAngleEnc),scanEncMax);
-    scanAngleEnc_last = msg->ang;
+
     //stacking
-    LaserBim temp;
-    temp.angle = scanAngleEnc/244.6*M_PI/180;
+    if (deltaScan != 0) {
+      LaserBim temp;
+      temp.angle = scanAngleEnc/244.6*M_PI/180;
 //    ROS_INFO("Encoder: %d Radian: %5f",scanAngleEnc,scanAngleEnc/244.6);
-    temp.bim =  msg->bim;
-    scanstack.push_back(temp);
+      temp.bim =  msg->bim;
+
+      scanstack.push_back(temp);
+    }
+    scanAngleEnc_last = msg->ang;
     WatchStack();
 
   }
@@ -139,21 +143,34 @@ class LaserToPcClass
 //       ROS_WARN("Side 2");
        if(fabs((float) scanAngleEnc) > 0.95*scanEncMax)
        {
+
+         ros::param::set("/rover_state/scanner_command","Home");
+
+//         make_pc();
+
+         ScannerState = WaiT;
+
+//         do {
+//             ros::param::get("/rover_state/scanner_state",scnstate);
+//             ROS_WARN("Waiting for the LIDAR TO GO BACK TO HOME");
+//             ros::Duration(0.5).sleep();
+//         }while(ros::ok() && !scnstate.compare("horizontal") == 0);
+       }
+       break;
+     case WaiT:
+       std::string scnstate;
+       ros::param::get("/rover_state/scanner_state",scnstate);
+       if(scnstate.compare("horizontal") == 0)
+       {
+         ROS_INFO("Done, stack size: %d",(int)scanstack.size());
          scanEncMax = 0;
          scanAngleEnc =  0;
          scanAngleEnc_last = 18383;
-         ros::param::set("/rover_state/scanner_command","Home");
-         ROS_INFO("Done, stack size: %d",(int)scanstack.size());
          make_pc();
-         scanstack.clear();
          ScannerState = mid1;
-         std::string scnstate;
-         do {
-             ros::param::get("/rover_state/scanner_state",scnstate);
-             ROS_WARN("Waiting for the LIDAR TO GO BACK TO HOME");
-             ros::Duration(0.5).sleep();
-         }while(ros::ok() && !scnstate.compare("horizontal") == 0);
+         ROS_WARN("Point cloud Published!");
        }
+       else ROS_WARN_THROTTLE(1,"Almost done!");
        break;
      }
   }
@@ -242,11 +259,10 @@ class LaserToPcClass
 
       float distance = point_distance(point,point_last);
       theta += scan_in.angle_increment;
-      temp_cloud->points.push_back(point);
+//      temp_cloud->points.push_back(point);
       if (point.z > Z_d_limit && point.z < Z_u_limit && point.x < X_limit && point.x > 0.00 && distance > voxel_filter)
       {
-        if(point.y > 0 && point.y < Y_limit) inc_cloud_3d_left.points.push_back(point);
-        if(point.y < 0 && point.y > -1.0*Y_limit)  inc_cloud_3d_right.points.push_back(point);
+        temp_cloud->points.push_back(point);
         point_last = point; //differential
       }
       //point_last = point;
@@ -271,6 +287,7 @@ class LaserToPcClass
       cloud_2d->clear();
     }
     pcl::toROSMsg(*cloud_acc,cloud_out);
+    scanstack.clear();
     cloud_out.header.stamp = ros::Time::now();
     cloud_out.header.frame_id = "laser";
     RL_cloud_pub_.publish(cloud_out);
