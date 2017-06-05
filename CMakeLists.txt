@@ -138,6 +138,7 @@ include_directories(
 add_executable(pc_creator src/pc_creator.cpp)
 add_executable(pc_ground_plane src/pc_ground_plane.cpp)
 add_executable(hazard_detector src/hazard_detector.cpp)
+add_executable(pc_server src/pc_server.cpp)
 
 ## Add cmake target dependencies of the executable
 ## same as for the library above
@@ -153,6 +154,10 @@ target_link_libraries(pc_ground_plane
 )
 
 target_link_libraries(hazard_detector
+   ${catkin_LIBRARIES}
+)
+
+target_link_libraries(pc_server
    ${catkin_LIBRARIES}
 )
 #############
